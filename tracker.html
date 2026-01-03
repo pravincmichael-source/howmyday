@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Mood Tracker</title>
+<style>
+/* Life-inspired background */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1400&q=80') no-repeat center center fixed;
+  background-size: cover;
+  padding: 20px;
+  text-align: center;
+  color: #fff;
+  min-height: 100vh;
+  margin-bottom: 50px; /* space for sticky footer */
+}
+body::before {
+  content: '';
+  position: fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background: rgba(0,0,0,0.4);
+  z-index: -1;
+}
+
+h1 { margin-bottom: 15px; color: #fff; text-shadow: 1px 1px 5px rgba(0,0,0,0.6); }
+
+#month-selector { margin-bottom: 20px; font-size: 16px; padding: 5px 10px; border-radius: 5px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 50px);
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 25px;
+}
+
+.day {
+  width: 50px;
+  height: 50px;
+  background: rgba(255,255,255,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 10px;
+  font-weight: bold;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.day:hover { transform: scale(1.1); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+
+#analysis, #year-summary {
+  max-width: 450px;
+  margin: 20px auto;
+  background: rgba(255,255,255,0.85);
+  padding: 15px 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  text-align: left;
+  color: #000;
+}
+
+.mood-label { display: flex; align-items: center; margin: 4px 0; }
+.color-box { width: 16px; height: 16px; border-radius: 4px; margin-right: 8px; display: inline-block; }
+
+#year-summary .year-status { display: flex; height: 25px; border-radius: 10px; overflow: hidden; margin-top: 5px; }
+
+#reset-btn {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 8px 16px;
+  background: red;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+#reset-btn:hover { background: darkred; }
+
+/* Sticky footer styling */
+#footer {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #fff;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
+  padding: 6px 0;
+  background: rgba(0,0,0,0.2);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 500px) {
+  .grid { grid-template-columns: repeat(7, 40px); gap: 4px; }
+  .day { width: 40px; height: 40px; }
+  #analysis, #year-summary { padding: 12px 15px; }
+  #year-summary .year-status { height: 20px; }
+}
+</style>
+</head>
+<body>
+
+<h1>Daily Mood Tracker</h1>
+<select id="month-selector"></select>
+<div class="grid" id="calendar"></div>
+
+<div id="analysis">
+  <h3>Mood Analysis</h3>
+  <div class="mood-label"><span class="color-box" style="background:green"></span>Good: <span id="good-count">0</span> (<span id="good-percent">0%</span>)</div>
+  <div class="mood-label"><span class="color-box" style="background:gold"></span>Neutral: <span id="neutral-count">0</span> (<span id="neutral-percent">0%</span>)</div>
+  <div class="mood-label"><span class="color-box" style="background:red"></span>Bad: <span id="bad-count">0</span> (<span id="bad-percent">0%</span>)</div>
+  <div class="mood-label"><span class="color-box" style="background:gray"></span>Normal: <span id="normal-count">0</span> (<span id="normal-percent">0%</span>)</div>
+</div>
+
+<div id="year-summary">
+  <h3>Year Overview</h3>
+  <div class="year-status" id="year-status"></div>
+</div>
+
+<button id="reset-btn">Reset All Data</button>
+
+<div id="footer">&copy; 2026 Pravin Canagasabey</div>
+
+<script>
+const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const monthSelector=document.getElementById('month-selector');
+const calendar=document.getElementById('calendar');
+monthNames.forEach((name,index)=>{
+  const option=document.createElement('option');
+  option.value=index;
+  option.textContent=name;
+  monthSelector.appendChild(option);
+});
+
+const moods={normal:{color:'gray',label:'Normal'},good:{color:'green',label:'Good'},neutral:{color:'gold',label:'Neutral'},bad:{color:'red',label:'Bad'}};
+
+const goodCountEl=document.getElementById('good-count');
+const neutralCountEl=document.getElementById('neutral-count');
+const badCountEl=document.getElementById('bad-count');
+const normalCountEl=document.getElementById('normal-count');
+const goodPercentEl=document.getElementById('good-percent');
+const neutralPercentEl=document.getElementById('neutral-percent');
+const badPercentEl=document.getElementById('bad-percent');
+const normalPercentEl=document.getElementById('normal-percent');
+const yearStatus=document.getElementById('year-status');
+const resetBtn=document.getElementById('reset-btn');
+
+const today=new Date();
+const currentYear=today.getFullYear();
+
+function loadMoodData(month,year){
+  const key=`mood-${year}-${month}`;
+  const data=localStorage.getItem(key);
+  return data?JSON.parse(data):{};
+}
+function saveMoodData(month,year,data){
+  const key=`mood-${year}-${month}`;
+  localStorage.setItem(key,JSON.stringify(data));
+}
+
+function updateAnalysis(days){
+  let counts={good:0,neutral:0,bad:0,normal:0};
+  days.forEach(day=>counts[day.dataset.state]++);
+  const total=days.length;
+  goodCountEl.textContent=counts.good;
+  neutralCountEl.textContent=counts.neutral;
+  badCountEl.textContent=counts.bad;
+  normalCountEl.textContent=counts.normal;
+  goodPercentEl.textContent=((counts.good/total)*100).toFixed(0)+'%';
+  neutralPercentEl.textContent=((counts.neutral/total)*100).toFixed(0)+'%';
+  badPercentEl.textContent=((counts.bad/total)*100).toFixed(0)+'%';
+  normalPercentEl.textContent=((counts.normal/total)*100).toFixed(0)+'%';
+}
+
+function createCalendar(month,year){
+  calendar.innerHTML='';
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const savedData=loadMoodData(month,year);
+  for(let day=1; day<=daysInMonth; day++){
+    const dayDiv=document.createElement('div');
+    dayDiv.className='day';
+    dayDiv.textContent=day;
+    const state=savedData[day]||'normal';
+    dayDiv.dataset.state=state;
+    dayDiv.style.backgroundColor=moods[state].color;
+    dayDiv.title=moods[state].label;
+
+    dayDiv.addEventListener('click',()=>{
+      const states=['normal','good','neutral','bad'];
+      let idx=states.indexOf(dayDiv.dataset.state);
+      idx=(idx+1)%states.length;
+      const newState=states[idx];
+      dayDiv.dataset.state=newState;
+      dayDiv.style.backgroundColor=moods[newState].color;
+      dayDiv.title=moods[newState].label;
+
+      const currentData=loadMoodData(month,year);
+      currentData[day]=newState;
+      saveMoodData(month,year,currentData);
+
+      updateAnalysis(document.querySelectorAll('.day'));
+      updateYearStatus(currentYear);
+    });
+
+    calendar.appendChild(dayDiv);
+  }
+  updateAnalysis(document.querySelectorAll('.day'));
+}
+
+function updateYearStatus(year){
+  let totalCounts={good:0,neutral:0,bad:0,normal:0};
+  for(let month=0; month<12; month++){
+    const data=loadMoodData(month,year);
+    const daysInMonth=new Date(year,month+1,0).getDate();
+    for(let d=1; d<=daysInMonth; d++){
+      const state=data[d]||'normal';
+      totalCounts[state]++;
+    }
+  }
+  yearStatus.innerHTML='';
+  const totalDays=totalCounts.good+totalCounts.neutral+totalCounts.bad+totalCounts.normal;
+  ['good','neutral','bad','normal'].forEach(m=>{
+    const div=document.createElement('div');
+    div.style.backgroundColor=moods[m].color;
+    div.style.width=((totalCounts[m]/totalDays)*100).toFixed(0)+'%';
+    yearStatus.appendChild(div);
+  });
+}
+
+resetBtn.addEventListener('click',()=>{
+  if(confirm("Reset all data?")){
+    for(let month=0; month<12; month++){
+      localStorage.removeItem(`mood-${currentYear}-${month}`);
+    }
+    createCalendar(parseInt(monthSelector.value),currentYear);
+    updateYearStatus(currentYear);
+  }
+});
+
+monthSelector.value=today.getMonth();
+createCalendar(today.getMonth(),currentYear);
+updateYearStatus(currentYear);
+monthSelector.addEventListener('change',()=>{
+  createCalendar(parseInt(monthSelector.value),currentYear);
+});
+</script>
+
+</body>
+</html>
+
+
+
+
